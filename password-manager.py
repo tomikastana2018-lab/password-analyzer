@@ -1,5 +1,5 @@
-import json
 import hashlib
+import sqlite3
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
@@ -20,42 +20,44 @@ class PasswordEntry:
 
 class PasswordManager:
     def __init__(self):
-        self.entries = []
+        self.connection = sqlite3.connect("passwords.db")
+        self.cursor = self.connection.cursor()
+        self.cursor.execute("""
+        CREATE TABLE IF NOT EXISTS passwords (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            service TEXT NOT NULL,
+            username TEXT NOT NULL,
+            password TEXT NOT NULL
+        )
+        """)
+        self.connection.commit()
 
     def add_entry(self, entry):
-        self.entries.append(entry)
+        self.cursor.execute("""
+        INSERT INTO passwords (service, username, password)
+        VALUES (?, ?, ?)
+        """,(entry.service, entry.username, entry.password))
+        self.connection.commit()
+        print("Password Added!")
 
     def show_all_entries(self):
-        for entry in self.entries:
-            entry.show_details()
+        self.cursor.execute("SELECT * FROM passwords")
+        rows = self.cursor.fetchall()
 
-    def save_to_file(self):
-        data_to_save = []
-        for entry in self.entries:
-            entry_dict = {
-                "service": entry.service,
-                "username": entry.username,
-                "password": entry.password
-            }
-            data_to_save.append(entry_dict)
-
-        with open("passwords.json", "w") as file:
-            json.dump(data_to_save, file, indent=4)
-
-    def load_from_file(self):
-        try:
-            with open("passwords.json", "r") as file:
-                data = json.load(file)
-            for item in data:
-                entry = PasswordEntry(item["service"], item["username"], item["password"])
-                self.entries.append(entry)
-        except FileNotFoundError:
+        if not rows:
+            print("No entries found!")
             return
+        print("Your Passwords:")
+        for row in rows:
+            entry_id, service, username, password = row
 
+            if len(password) > 4:
+                hidden_password = password[:3] + "*" * (len(password) - 3)
+            else:
+                hidden_password = "****"
+            print(f"ID: {entry_id} | Service: {service} | Username: {username} | Password: {hidden_password}")
 
 manager = PasswordManager()
-manager.load_from_file()
-
 master_input = input("Enter Master Password to unlock: ")
 
 if hash_password(master_input) == "8c5b79cdab71169ff689e798250f3157dbf42c81c6c87c62c5d46c2c62febe65":
@@ -76,7 +78,6 @@ while True:
         username = input("Enter username: ")
         password = input("Enter password: ")
         manager.add_entry(PasswordEntry(service, username, password))
-        manager.save_to_file()
 
     elif choice == 2:
         manager.show_all_entries()
@@ -84,8 +85,3 @@ while True:
     elif choice == 3:
         print("Thank you for using Password Manager!")
         break
-
-
-
-
-
