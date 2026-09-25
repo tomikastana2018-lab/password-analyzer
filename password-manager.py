@@ -1,5 +1,5 @@
+import psycopg2
 import hashlib
-import sqlite3
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
@@ -20,11 +20,17 @@ class PasswordEntry:
 
 class PasswordManager:
     def __init__(self):
-        self.connection = sqlite3.connect("passwords.db")
+        self.connection = psycopg2.connect(
+            host="localhost",
+            port="5432",
+            database="postgres",
+            user="postgres",
+            password=""
+        )
         self.cursor = self.connection.cursor()
         self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS passwords (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             service TEXT NOT NULL,
             username TEXT NOT NULL,
             password TEXT NOT NULL
@@ -35,7 +41,7 @@ class PasswordManager:
     def add_entry(self, entry):
         self.cursor.execute("""
         INSERT INTO passwords (service, username, password)
-        VALUES (?, ?, ?)
+        VALUES (%s, %s, %s)
         """,(entry.service, entry.username, entry.password))
         self.connection.commit()
         print("Password Added!")
